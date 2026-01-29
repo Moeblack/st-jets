@@ -455,6 +455,18 @@ const STATIC_ITEMS = [
 const searcher = new Searcher({ maxResults: 50 });
 searcher.addBatch([...STATIC_ITEMS, ...FALLBACK_ITEMS]);
 
+function registerTestApi() {
+    if (typeof window === 'undefined') return;
+    if (!window.__stSpotlightTest) {
+        window.__stSpotlightTest = {};
+    }
+    if (typeof window.__stSpotlightTest.addItems !== 'function') {
+        window.__stSpotlightTest.addItems = (items = []) => {
+            searcher.addBatch(items);
+        };
+    }
+}
+
 const characterSource = new CharacterSource();
 characterSource.type = 'character';
 
@@ -880,6 +892,147 @@ function hideResults() {
     results.style.display = '';
 }
 
+const SNIPPET_RADIUS = 48;
+const SNIPPET_MAX = 140;
+const MAX_SNIPPETS = 3;
+
+function normalizeRanges(ranges = [], length = 0) {
+    const filtered = ranges
+        .filter(range => Number.isFinite(range?.start) && Number.isFinite(range?.end))
+        .map(range => ({
+            start: Math.max(0, Math.min(length, range.start)),
+            end: Math.max(0, Math.min(length, range.end)),
+        }))
+        .filter(range => range.end > range.start)
+        .sort((a, b) => a.start - b.start);
+
+    const merged = [];
+    for (const range of filtered) {
+        const last = merged[merged.length - 1];
+        if (!last || range.start > last.end) {
+            merged.push({ ...range });
+        } else {
+            last.end = Math.max(last.end, range.end);
+        }
+    }
+    return merged;
+}
+
+function buildSingleSnippet(text, ranges) {
+    if (!text) return { snippet: '', ranges: [], prefix: '', suffix: '' };
+    const normalized = normalizeRanges(ranges, text.length);
+    if (!normalized.length) {
+        const clipped = text.length > SNIPPET_MAX ? text.slice(0, SNIPPET_MAX) : text;
+        return { snippet: clipped, ranges: [], prefix: '', suffix: text.length > SNIPPET_MAX ? '…' : '' };
+    }
+
+    const first = normalized[0];
+    let start = Math.max(0, first.start - SNIPPET_RADIUS);
+    let end = Math.min(text.length, first.end + SNIPPET_RADIUS);
+
+    if (end - start > SNIPPET_MAX) {
+        const center = Math.floor((first.start + first.end) / 2);
+        start = Math.max(0, Math.min(text.length - SNIPPET_MAX, center - Math.floor(SNIPPET_MAX / 2)));
+        end = Math.min(text.length, start + SNIPPET_MAX);
+    }
+
+    const snippet = text.slice(start, end);
+    const snippetRanges = normalized
+        .filter(range => range.end > start && range.start < end)
+        .map(range => ({
+            start: Math.max(0, range.start - start),
+            end: Math.min(end, range.end) - start,
+        }));
+
+    return {
+        snippet,
+        ranges: normalizeRanges(snippetRanges, snippet.length),
+        prefix: start > 0 ? '…' : '',
+        suffix: end < text.length ? '…' : '',
+    };
+}
+
+function buildSnippetWindow(range, length) {
+    let start = Math.max(0, range.start - SNIPPET_RADIUS);
+    let end = Math.min(length, range.end + SNIPPET_RADIUS);
+    if (end - start > SNIPPET_MAX) {
+        const center = Math.floor((range.start + range.end) / 2);
+        start = Math.max(0, Math.min(length - SNIPPET_MAX, center - Math.floor(SNIPPET_MAX / 2)));
+        end = Math.min(length, start + SNIPPET_MAX);
+    }
+    return { start, end };
+}
+
+function mergeWindows(windows = []) {
+    const ordered = windows
+        .filter(win => Number.isFinite(win?.start) && Number.isFinite(win?.end))
+        .sort((a, b) => a.start - b.start);
+    const merged = [];
+    const gap = 8;
+    for (const win of ordered) {
+        const last = merged[merged.length - 1];
+        if (!last || win.start > last.end + gap) {
+            merged.push({ ...win });
+        } else {
+            last.end = Math.max(last.end, win.end);
+        }
+    }
+    return merged;
+}
+
+function buildSnippets(text, ranges) {
+    if (!text) return [];
+    const normalized = normalizeRanges(ranges, text.length);
+    if (!normalized.length) return [];
+
+    const windows = normalized.map(range => buildSnippetWindow(range, text.length));
+    const merged = mergeWindows(windows);
+
+    return merged.map(window => {
+        const snippet = text.slice(window.start, window.end);
+        const snippetRanges = normalized
+            .filter(range => range.end > window.start && range.start < window.end)
+            .map(range => ({
+                start: Math.max(0, range.start - window.start),
+                end: Math.min(window.end, range.end) - window.start,
+            }));
+        return {
+            snippet,
+            ranges: normalizeRanges(snippetRanges, snippet.length),
+            prefix: window.start > 0 ? '…' : '',
+            suffix: window.end < text.length ? '…' : '',
+        };
+    });
+}
+
+function appendHighlightedText(container, text, ranges, { prefix = '', suffix = '' } = {}) {
+    if (!container) return;
+    if (prefix) container.appendChild(document.createTextNode(prefix));
+
+    if (!ranges.length) {
+        container.appendChild(document.createTextNode(text));
+        if (suffix) container.appendChild(document.createTextNode(suffix));
+        return;
+    }
+
+    let cursor = 0;
+    ranges.forEach(range => {
+        if (range.start > cursor) {
+            container.appendChild(document.createTextNode(text.slice(cursor, range.start)));
+        }
+        const mark = document.createElement('span');
+        mark.className = 'st-spotlight-highlight';
+        mark.textContent = text.slice(range.start, range.end);
+        container.appendChild(mark);
+        cursor = range.end;
+    });
+
+    if (cursor < text.length) {
+        container.appendChild(document.createTextNode(text.slice(cursor)));
+    }
+    if (suffix) container.appendChild(document.createTextNode(suffix));
+}
+
 function renderResults(found) {
     clearResults();
 
@@ -924,11 +1077,64 @@ function renderResults(found) {
 
             const title = document.createElement('div');
             title.className = 'st-spotlight-result-title';
-            title.textContent = item.title || 'Untitled';
+            const titleText = item.title || 'Untitled';
+            const titleRanges = normalizeRanges(
+                (result.matches || []).filter(match => match.field === 'title'),
+                titleText.length,
+            );
+            if (titleRanges.length) {
+                appendHighlightedText(title, titleText, titleRanges);
+            } else {
+                title.textContent = titleText;
+            }
 
             const subtitle = document.createElement('div');
             subtitle.className = 'st-spotlight-result-subtitle';
-            subtitle.textContent = item.content || '';
+            const contentText = item.content || '';
+            const contentRanges = (result.matches || []).filter(match => match.field === 'content');
+            const snippets = buildSnippets(contentText, contentRanges);
+            const snippetItems = snippets.length ? snippets : [buildSingleSnippet(contentText, [])];
+            const snippetList = document.createElement('div');
+            snippetList.className = 'st-spotlight-snippet-list';
+
+            const applyExpandedState = expanded => {
+                snippetList.dataset.expanded = expanded ? 'true' : 'false';
+                const hidden = snippetList.querySelectorAll('.st-spotlight-snippet');
+                hidden.forEach((node, index) => {
+                    if (index >= MAX_SNIPPETS) {
+                        node.classList.toggle('is-hidden', !expanded);
+                    }
+                });
+            };
+
+            snippetItems.forEach((snippet, index) => {
+                const line = document.createElement('div');
+                line.className = 'st-spotlight-snippet';
+                if (index >= MAX_SNIPPETS) {
+                    line.classList.add('is-hidden');
+                }
+                appendHighlightedText(line, snippet.snippet, snippet.ranges, {
+                    prefix: snippet.prefix,
+                    suffix: snippet.suffix,
+                });
+                snippetList.appendChild(line);
+            });
+
+            if (snippetItems.length > MAX_SNIPPETS) {
+                const toggle = document.createElement('div');
+                toggle.className = 'st-spotlight-snippet-toggle';
+                toggle.textContent = '展开更多';
+                toggle.addEventListener('click', event => {
+                    event.stopPropagation();
+                    const expanded = snippetList.dataset.expanded !== 'true';
+                    applyExpandedState(expanded);
+                    toggle.textContent = expanded ? '收起' : '展开更多';
+                });
+                snippetList.appendChild(toggle);
+                applyExpandedState(false);
+            }
+
+            subtitle.appendChild(snippetList);
 
             row.appendChild(title);
             row.appendChild(subtitle);
@@ -1254,6 +1460,7 @@ function initSpotlight() {
         return;
     }
     window.__stSpotlightInitialized = true;
+    registerTestApi();
     ensureDom();
     ensureMobileEntry();
     ensureDataLoaded();

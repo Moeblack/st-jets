@@ -76,11 +76,16 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    transition: transform 0.12s ease, background 0.12s ease;
 }
 
 .st-spotlight-result-item:hover,
 .st-spotlight-result-item.selected {
     background: rgba(255, 255, 255, 0.08);
+}
+
+.st-spotlight-result-item.selected {
+    transform: translateX(-6px);
 }
 
 .st-spotlight-result-title {
@@ -91,6 +96,35 @@
 .st-spotlight-result-subtitle {
     font-size: 12px;
     opacity: 0.7;
+}
+
+.st-spotlight-snippet-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.st-spotlight-snippet {
+    line-height: 1.35;
+}
+
+.st-spotlight-snippet.is-hidden {
+    display: none;
+}
+
+.st-spotlight-snippet-toggle {
+    font-size: 11px;
+    opacity: 0.6;
+    cursor: pointer;
+    user-select: none;
+    margin-top: 2px;
+}
+
+.st-spotlight-highlight {
+    background: rgba(255, 200, 87, 0.35);
+    color: inherit;
+    padding: 0 2px;
+    border-radius: 3px;
 }
 
 .st-spotlight-empty {
