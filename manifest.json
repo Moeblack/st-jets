@@ -1,0 +1,9 @@
+{
+    "display_name": "JETS (Just Enough Tavern Search)",
+    "loading_order": 30,
+    "js": "index.js",
+    "css": "style.css",
+    "author": "SillyTavern Community",
+    "version": "0.2.2",
+    "description": "Just Enough Tavern Search: search everywhere across SillyTavern resources."
+}
