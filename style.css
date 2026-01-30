@@ -140,29 +140,25 @@
 }
 
 #st-jets-mobile-button {
-    display: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: var(--topBarIconSize, 22px);
+    padding: 2px 4px;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.15s ease;
+    position: relative;
+    z-index: 2;
+    margin-left: 6px;
+}
+
+#st-jets-mobile-button:active,
+#st-jets-mobile-button:hover {
+    opacity: 1;
 }
 
 @media screen and (max-width: 1000px) {
-    #st-jets-mobile-button {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: var(--topBarIconSize, 22px);
-        padding: 2px 4px;
-        cursor: pointer;
-        opacity: 0.6;
-        transition: opacity 0.15s ease;
-        position: relative;
-        z-index: 2;
-        margin-left: 6px;
-    }
-
-    #st-jets-mobile-button:active,
-    #st-jets-mobile-button:hover {
-        opacity: 1;
-    }
-
     #st-jets-modal {
         top: 8%;
         width: min(96vw, 720px);

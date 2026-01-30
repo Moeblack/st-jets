@@ -1501,7 +1501,14 @@ function focusWorldEntry(entryIndex) {
 }
 
 function handleGlobalKeydown(event) {
-    if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && event.key.toLowerCase() === 'k') {
+    const keyLower = String(event?.key || '').toLowerCase();
+    const code = event?.code;
+    const isAltKHotkey = !!event?.altKey
+        && !event?.metaKey
+        && !event?.shiftKey
+        && (code === 'KeyK' || keyLower === 'k');
+
+    if (isAltKHotkey) {
         event.preventDefault();
         event.stopPropagation();
         if (typeof event.stopImmediatePropagation === 'function') {
