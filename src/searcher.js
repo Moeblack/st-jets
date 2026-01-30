@@ -1,10 +1,11 @@
 /**
- * ST-Spotlight 搜索器
+ * JETS 搜索器
  * 负责在索引条目中进行匹配和排序
  */
 
 const DEFAULT_OPTIONS = {
     maxResults: 200,
+    getExtraScore: null,
 };
 
 function normalizeText(value) {
@@ -90,6 +91,10 @@ export class Searcher {
             return [];
         }
 
+        const getExtraScore = typeof this.options.getExtraScore === 'function'
+            ? this.options.getExtraScore
+            : null;
+
         const results = [];
         for (const item of this.items) {
             const title = item?.title ?? '';
@@ -118,6 +123,16 @@ export class Searcher {
 
             if (score <= 0) {
                 continue;
+            }
+
+            if (getExtraScore) {
+                const extraScore = Number(getExtraScore(item, normalizedQuery));
+                if (Number.isFinite(extraScore) && extraScore !== 0) {
+                    score += extraScore;
+                    if (score <= 0) {
+                        continue;
+                    }
+                }
             }
 
             const matches = [

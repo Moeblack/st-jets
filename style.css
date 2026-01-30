@@ -1,25 +1,25 @@
-/* ST-Spotlight basic layout */
+/* JETS basic layout */
 
-#st-spotlight-container {
+#st-jets-container {
     position: fixed;
     inset: 0;
     z-index: 10000;
     display: none;
 }
 
-#st-spotlight-container.is-open {
+#st-jets-container.is-open {
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
 }
 
-#st-spotlight-overlay {
+#st-jets-overlay {
     position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.45);
 }
 
-#st-spotlight-modal {
+#st-jets-modal {
     position: absolute;
     top: 16%;
     left: 50%;
@@ -35,7 +35,7 @@
     gap: 10px;
 }
 
-#st-spotlight-input {
+#st-jets-input {
     width: 100%;
     padding: 10px 12px;
     border-radius: 8px;
@@ -45,23 +45,23 @@
     outline: none;
 }
 
-#st-spotlight-input:focus {
+#st-jets-input:focus {
     border-color: rgba(255, 255, 255, 0.35);
     box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1);
 }
 
-#st-spotlight-results {
+#st-jets-results {
     display: none;
     max-height: 50vh;
     overflow: auto;
     padding-right: 4px;
 }
 
-#st-spotlight-results.is-visible {
+#st-jets-results.is-visible {
     display: block;
 }
 
-.st-spotlight-group-header {
+.st-jets-group-header {
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.08em;
@@ -69,7 +69,7 @@
     margin: 10px 6px 4px;
 }
 
-.st-spotlight-result-item {
+.st-jets-result-item {
     padding: 8px 10px;
     border-radius: 8px;
     cursor: pointer;
@@ -79,40 +79,40 @@
     transition: transform 0.12s ease, background 0.12s ease;
 }
 
-.st-spotlight-result-item:hover,
-.st-spotlight-result-item.selected {
+.st-jets-result-item:hover,
+.st-jets-result-item.selected {
     background: rgba(255, 255, 255, 0.08);
 }
 
-.st-spotlight-result-item.selected {
+.st-jets-result-item.selected {
     transform: translateX(-6px);
 }
 
-.st-spotlight-result-title {
+.st-jets-result-title {
     font-size: 14px;
     font-weight: 600;
 }
 
-.st-spotlight-result-subtitle {
+.st-jets-result-subtitle {
     font-size: 12px;
     opacity: 0.7;
 }
 
-.st-spotlight-snippet-list {
+.st-jets-snippet-list {
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-.st-spotlight-snippet {
+.st-jets-snippet {
     line-height: 1.35;
 }
 
-.st-spotlight-snippet.is-hidden {
+.st-jets-snippet.is-hidden {
     display: none;
 }
 
-.st-spotlight-snippet-toggle {
+.st-jets-snippet-toggle {
     font-size: 11px;
     opacity: 0.6;
     cursor: pointer;
@@ -120,31 +120,31 @@
     margin-top: 2px;
 }
 
-.st-spotlight-highlight {
+.st-jets-highlight {
     background: rgba(255, 200, 87, 0.35);
     color: inherit;
     padding: 0 2px;
     border-radius: 3px;
 }
 
-.st-spotlight-empty {
+.st-jets-empty {
     padding: 10px;
     opacity: 0.7;
     font-size: 13px;
 }
 
-.st-spotlight-target {
+.st-jets-target {
     outline: 2px solid #ffc857;
     outline-offset: 2px;
     transition: outline 0.2s ease;
 }
 
-#st-spotlight-mobile-button {
+#st-jets-mobile-button {
     display: none;
 }
 
 @media screen and (max-width: 1000px) {
-    #st-spotlight-mobile-button {
+    #st-jets-mobile-button {
         display: flex;
         align-items: center;
         justify-content: center;
@@ -158,36 +158,36 @@
         margin-left: 6px;
     }
 
-    #st-spotlight-mobile-button:active,
-    #st-spotlight-mobile-button:hover {
+    #st-jets-mobile-button:active,
+    #st-jets-mobile-button:hover {
         opacity: 1;
     }
 
-    #st-spotlight-modal {
+    #st-jets-modal {
         top: 8%;
         width: min(96vw, 720px);
         max-height: 84vh;
         padding: 14px;
     }
 
-    #st-spotlight-input {
+    #st-jets-input {
         padding: 12px 14px;
         font-size: 16px;
     }
 
-    #st-spotlight-results {
+    #st-jets-results {
         max-height: 64vh;
     }
 
-    .st-spotlight-result-item {
+    .st-jets-result-item {
         padding: 12px 12px;
     }
 
-    .st-spotlight-result-title {
+    .st-jets-result-title {
         font-size: 15px;
     }
 
-    .st-spotlight-result-subtitle {
+    .st-jets-result-subtitle {
         font-size: 13px;
     }
 }

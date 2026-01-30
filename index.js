@@ -8,7 +8,7 @@ import {
     ChatSource,
 } from './src/index.js';
 
-let spotlightIdCounter = 0;
+let jetsIdCounter = 0;
 
 function getTextFromElement(element) {
     if (!element) return '';
@@ -30,17 +30,17 @@ function normalizeI18nKey(value) {
     return value.replace(/^\[[^\]]+\]/, '').trim();
 }
 
-function ensureSpotlightSelector(element, prefix = 'settings') {
+function ensureJetsSelector(element, prefix = 'settings') {
     if (!element) return null;
     if (element.id) {
         return { id: element.id, selector: `#${element.id}` };
     }
-    let marker = element.getAttribute('data-st-spotlight-id');
+    let marker = element.getAttribute('data-st-jets-id');
     if (!marker) {
-        marker = `${prefix}-${++spotlightIdCounter}`;
-        element.setAttribute('data-st-spotlight-id', marker);
+        marker = `${prefix}-${++jetsIdCounter}`;
+        element.setAttribute('data-st-jets-id', marker);
     }
-    return { id: marker, selector: `[data-st-spotlight-id="${marker}"]` };
+    return { id: marker, selector: `[data-st-jets-id="${marker}"]` };
 }
 
 const PANEL_CONTAINERS = [
@@ -96,6 +96,7 @@ function collectOptionsMenuItems(seenSelectors) {
             metadata: {
                 action: 'click',
                 selector,
+                usageKey: `settings::options::click::${id}`,
             },
         });
     });
@@ -134,6 +135,7 @@ function collectExtensionContainers(seenSelectors) {
                 action: 'scroll',
                 selector,
                 panel: 'extensions',
+                usageKey: `settings::extensions::scroll::${id}`,
             },
         });
     });
@@ -149,9 +151,12 @@ function collectPanelItems(containerId, panelKey, idPrefix, seenSelectors) {
 
     const addItem = ({ title, i18nKey, tooltip, target, action = 'reveal' }) => {
         if (!title) return;
-        const targetInfo = ensureSpotlightSelector(target, idPrefix);
+        const targetInfo = ensureJetsSelector(target, idPrefix);
         if (!targetInfo || seenSelectors.has(targetInfo.selector)) return;
         seenSelectors.add(targetInfo.selector);
+
+        const stableToken = target?.id || normalizeI18nKey(i18nKey) || title;
+        const usageKey = `settings::${panelKey}::${action}::${stableToken}`;
 
         items.push({
             id: `${idPrefix}-${targetInfo.id}`,
@@ -162,6 +167,7 @@ function collectPanelItems(containerId, panelKey, idPrefix, seenSelectors) {
                 action,
                 selector: targetInfo.selector,
                 panel: panelKey,
+                usageKey,
             },
         });
     };
@@ -218,8 +224,8 @@ function getHighlightTarget(element) {
 function applyHighlight(element) {
     const target = getHighlightTarget(element);
     if (!target) return;
-    target.classList.add('st-spotlight-target');
-    setTimeout(() => target.classList.remove('st-spotlight-target'), 1200);
+    target.classList.add('st-jets-target');
+    setTimeout(() => target.classList.remove('st-jets-target'), 1200);
 }
 
 function scoreItem(item) {
@@ -284,21 +290,23 @@ function collectActionButtons(root, panelKey, idPrefix, seenSelectors) {
     const candidates = root.querySelectorAll('.menu_button, .menu_button_icon, .right_menu_button, .drawer-icon, .interactable');
 
     candidates.forEach(candidate => {
-        if (candidate.closest('#st-spotlight-container')) return;
+        if (candidate.closest('#st-jets-container')) return;
         const target = candidate.classList.contains('menu_button_icon')
             ? (candidate.closest('.menu_button') || candidate)
             : candidate;
-        if (target.id && target.id.startsWith('st-spotlight')) return;
+        if (target.id && target.id.startsWith('st-jets')) return;
         if (!isLikelyClickable(target)) return;
 
         const { title, i18nKey, tooltip } = extractButtonLabel(target);
         if (!title) return;
 
-        const targetInfo = ensureSpotlightSelector(target, idPrefix);
+        const targetInfo = ensureJetsSelector(target, idPrefix);
         if (!targetInfo || seenSelectors.has(targetInfo.selector)) return;
         seenSelectors.add(targetInfo.selector);
 
         const resolvedPanel = resolvePanelKey(target, panelKey);
+        const stableToken = target?.id || normalizeI18nKey(i18nKey) || title;
+        const usageKey = `settings::${resolvedPanel || panelKey || ''}::click::${stableToken}`;
         items.push({
             id: `${idPrefix}-${targetInfo.id}`,
             type: 'settings',
@@ -308,6 +316,7 @@ function collectActionButtons(root, panelKey, idPrefix, seenSelectors) {
                 action: 'click',
                 selector: targetInfo.selector,
                 panel: resolvedPanel || undefined,
+                usageKey,
             },
         });
     });
@@ -423,7 +432,7 @@ const FALLBACK_ITEMS = [
         id: 'worldinfo-1',
         type: 'worldinfo',
         title: 'World Entry Alpha',
-        content: 'A world entry for spotlight tests.',
+        content: 'A world entry for JETS tests.',
         metadata: { bookName: 'TestBook', entryIndex: 0 },
     },
     {
@@ -452,16 +461,97 @@ const STATIC_ITEMS = [
     },
 ];
 
-const searcher = new Searcher({ maxResults: 50 });
+const USAGE_STORAGE_KEY = 'st-jets-usage';
+const USAGE_MAX_ENTRIES = 500;
+let usageStatsCache = null;
+
+function loadUsageStats() {
+    if (typeof localStorage === 'undefined') return {};
+    try {
+        const raw = localStorage.getItem(USAGE_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return parsed && typeof parsed === 'object' ? parsed : {};
+    } catch {
+        return {};
+    }
+}
+
+function saveUsageStats(stats) {
+    if (typeof localStorage === 'undefined') return;
+    try {
+        localStorage.setItem(USAGE_STORAGE_KEY, JSON.stringify(stats || {}));
+    } catch {
+        // ignore
+    }
+}
+
+function getUsageStats() {
+    if (!usageStatsCache) {
+        usageStatsCache = loadUsageStats();
+    }
+    return usageStatsCache;
+}
+
+function getUsageKey(item) {
+    const explicit = item?.metadata?.usageKey;
+    if (explicit) return String(explicit);
+    if (!item?.id) return '';
+    return `${item?.type || 'unknown'}::${item.id}`;
+}
+
+function trimUsageStats(stats) {
+    const entries = Object.entries(stats || {});
+    if (entries.length <= USAGE_MAX_ENTRIES) return stats || {};
+    entries.sort((a, b) => (Number(b[1]?.lastUsed) || 0) - (Number(a[1]?.lastUsed) || 0));
+    return Object.fromEntries(entries.slice(0, USAGE_MAX_ENTRIES));
+}
+
+function recordUsage(item) {
+    const key = getUsageKey(item);
+    if (!key) return;
+    const stats = getUsageStats();
+    const now = Date.now();
+    const prev = stats[key];
+    const count = Math.max(0, Number(prev?.count) || 0);
+    stats[key] = { count: count + 1, lastUsed: now };
+    const trimmed = trimUsageStats(stats);
+    usageStatsCache = trimmed;
+    saveUsageStats(trimmed);
+}
+
+function getUsageExtraScore(item) {
+    const key = getUsageKey(item);
+    if (!key) return 0;
+    const stats = getUsageStats();
+    const usage = stats[key];
+    if (!usage) return 0;
+
+    const count = Math.max(0, Number(usage?.count) || 0);
+    const lastUsed = Number(usage?.lastUsed) || 0;
+    let score = Math.min(20, count * 2);
+
+    const age = Date.now() - lastUsed;
+    if (Number.isFinite(age) && age >= 0) {
+        if (age < 3600000) score += 10;
+        else if (age < 86400000) score += 5;
+    }
+
+    return score;
+}
+
+const searcher = new Searcher({
+    maxResults: 50,
+    getExtraScore: (item) => getUsageExtraScore(item),
+});
 searcher.addBatch([...STATIC_ITEMS, ...FALLBACK_ITEMS]);
 
 function registerTestApi() {
     if (typeof window === 'undefined') return;
-    if (!window.__stSpotlightTest) {
-        window.__stSpotlightTest = {};
+    if (!window.__stJetsTest) {
+        window.__stJetsTest = {};
     }
-    if (typeof window.__stSpotlightTest.addItems !== 'function') {
-        window.__stSpotlightTest.addItems = (items = []) => {
+    if (typeof window.__stJetsTest.addItems !== 'function') {
+        window.__stJetsTest.addItems = (items = []) => {
             searcher.addBatch(items);
         };
     }
@@ -732,33 +822,33 @@ let input;
 let results;
 
 function ensureDom() {
-    if (document.getElementById('st-spotlight-container')) {
-        container = document.getElementById('st-spotlight-container');
-        overlay = document.getElementById('st-spotlight-overlay');
-        modal = document.getElementById('st-spotlight-modal');
-        input = document.getElementById('st-spotlight-input');
-        results = document.getElementById('st-spotlight-results');
+    if (document.getElementById('st-jets-container')) {
+        container = document.getElementById('st-jets-container');
+        overlay = document.getElementById('st-jets-overlay');
+        modal = document.getElementById('st-jets-modal');
+        input = document.getElementById('st-jets-input');
+        results = document.getElementById('st-jets-results');
         return;
     }
 
     container = document.createElement('div');
-    container.id = 'st-spotlight-container';
+    container.id = 'st-jets-container';
     container.setAttribute('aria-hidden', 'true');
 
     overlay = document.createElement('div');
-    overlay.id = 'st-spotlight-overlay';
+    overlay.id = 'st-jets-overlay';
 
     modal = document.createElement('div');
-    modal.id = 'st-spotlight-modal';
+    modal.id = 'st-jets-modal';
 
     input = document.createElement('input');
-    input.id = 'st-spotlight-input';
+    input.id = 'st-jets-input';
     input.type = 'text';
     input.placeholder = 'Search anything...';
     input.autocomplete = 'off';
 
     results = document.createElement('div');
-    results.id = 'st-spotlight-results';
+    results.id = 'st-jets-results';
 
     modal.appendChild(input);
     modal.appendChild(results);
@@ -766,12 +856,12 @@ function ensureDom() {
     container.appendChild(modal);
     document.body.appendChild(container);
 
-    overlay.addEventListener('click', closeSpotlight);
+    overlay.addEventListener('click', closeJets);
     input.addEventListener('input', handleSearchInput);
 }
 
 function ensureMobileEntry() {
-    if (document.getElementById('st-spotlight-mobile-button')) {
+    if (document.getElementById('st-jets-mobile-button')) {
         return;
     }
     const topSettings = document.getElementById('top-settings-holder');
@@ -779,15 +869,15 @@ function ensureMobileEntry() {
     const host = topSettings || topBar;
     if (!host) return;
     const button = document.createElement('div');
-    button.id = 'st-spotlight-mobile-button';
+    button.id = 'st-jets-mobile-button';
     button.className = 'drawer-icon fa-solid fa-magnifying-glass';
     button.title = 'Search (JETS)';
     button.setAttribute('data-i18n', '[title]Search (JETS)');
-    button.addEventListener('click', toggleSpotlight);
+    button.addEventListener('click', toggleJets);
     host.appendChild(button);
 }
 
-function openSpotlight() {
+function openJets() {
     if (isOpen) return;
     ensureDom();
     ensureDataLoaded();
@@ -814,7 +904,7 @@ function openSpotlight() {
     }, 0);
 }
 
-function closeSpotlight() {
+function closeJets() {
     if (!isOpen) return;
     isOpen = false;
     container.classList.remove('is-open');
@@ -828,11 +918,11 @@ function closeSpotlight() {
     }
 }
 
-function toggleSpotlight() {
+function toggleJets() {
     if (isOpen) {
-        closeSpotlight();
+        closeJets();
     } else {
-        openSpotlight();
+        openJets();
     }
 }
 
@@ -1021,7 +1111,7 @@ function appendHighlightedText(container, text, ranges, { prefix = '', suffix = 
             container.appendChild(document.createTextNode(text.slice(cursor, range.start)));
         }
         const mark = document.createElement('span');
-        mark.className = 'st-spotlight-highlight';
+        mark.className = 'st-jets-highlight';
         mark.textContent = text.slice(range.start, range.end);
         container.appendChild(mark);
         cursor = range.end;
@@ -1038,7 +1128,7 @@ function renderResults(found) {
 
     if (!found.length) {
         const empty = document.createElement('div');
-        empty.className = 'st-spotlight-empty';
+        empty.className = 'st-jets-empty';
         empty.textContent = 'No results';
         results.appendChild(empty);
         return;
@@ -1057,14 +1147,14 @@ function renderResults(found) {
     for (const type of order) {
         if (!grouped.has(type)) continue;
         const header = document.createElement('div');
-        header.className = 'st-spotlight-group-header';
+        header.className = 'st-jets-group-header';
         header.textContent = TYPE_LABELS[type] || type;
         results.appendChild(header);
 
         for (const result of grouped.get(type)) {
             const item = result.item;
             const row = document.createElement('div');
-            row.className = 'st-spotlight-result-item';
+            row.className = 'st-jets-result-item';
             row.dataset.type = item.type || 'other';
             row.dataset.id = item.id || '';
 
@@ -1076,7 +1166,7 @@ function renderResults(found) {
             }
 
             const title = document.createElement('div');
-            title.className = 'st-spotlight-result-title';
+            title.className = 'st-jets-result-title';
             const titleText = item.title || 'Untitled';
             const titleRanges = normalizeRanges(
                 (result.matches || []).filter(match => match.field === 'title'),
@@ -1089,17 +1179,17 @@ function renderResults(found) {
             }
 
             const subtitle = document.createElement('div');
-            subtitle.className = 'st-spotlight-result-subtitle';
+            subtitle.className = 'st-jets-result-subtitle';
             const contentText = item.content || '';
             const contentRanges = (result.matches || []).filter(match => match.field === 'content');
             const snippets = buildSnippets(contentText, contentRanges);
             const snippetItems = snippets.length ? snippets : [buildSingleSnippet(contentText, [])];
             const snippetList = document.createElement('div');
-            snippetList.className = 'st-spotlight-snippet-list';
+            snippetList.className = 'st-jets-snippet-list';
 
             const applyExpandedState = expanded => {
                 snippetList.dataset.expanded = expanded ? 'true' : 'false';
-                const hidden = snippetList.querySelectorAll('.st-spotlight-snippet');
+                const hidden = snippetList.querySelectorAll('.st-jets-snippet');
                 hidden.forEach((node, index) => {
                     if (index >= MAX_SNIPPETS) {
                         node.classList.toggle('is-hidden', !expanded);
@@ -1109,7 +1199,7 @@ function renderResults(found) {
 
             snippetItems.forEach((snippet, index) => {
                 const line = document.createElement('div');
-                line.className = 'st-spotlight-snippet';
+                line.className = 'st-jets-snippet';
                 if (index >= MAX_SNIPPETS) {
                     line.classList.add('is-hidden');
                 }
@@ -1122,7 +1212,7 @@ function renderResults(found) {
 
             if (snippetItems.length > MAX_SNIPPETS) {
                 const toggle = document.createElement('div');
-                toggle.className = 'st-spotlight-snippet-toggle';
+                toggle.className = 'st-jets-snippet-toggle';
                 toggle.textContent = '展开更多';
                 toggle.addEventListener('click', event => {
                     event.stopPropagation();
@@ -1241,16 +1331,18 @@ async function scrollToMessage(messageIndex) {
     const target = document.querySelector(`.mes[mesid="${messageIndex}"]`);
     if (!target) return;
     target.scrollIntoView({ block: 'center' });
-    target.classList.add('st-spotlight-target');
-    setTimeout(() => target.classList.remove('st-spotlight-target'), 1200);
+    target.classList.add('st-jets-target');
+    setTimeout(() => target.classList.remove('st-jets-target'), 1200);
 }
 
 async function executeResult(result) {
     const item = result?.item;
     if (!item) {
-        closeSpotlight();
+        closeJets();
         return;
     }
+
+    recordUsage(item);
 
     switch (item.type) {
         case 'character':
@@ -1325,7 +1417,7 @@ async function executeResult(result) {
             break;
     }
 
-    closeSpotlight();
+    closeJets();
 }
 
 function openPanel(selector) {
@@ -1404,8 +1496,8 @@ function focusWorldEntry(entryIndex) {
     const entry = document.querySelector(`.world_entry[uid="${entryIndex}"]`);
     if (!entry) return;
     entry.scrollIntoView({ block: 'center' });
-    entry.classList.add('st-spotlight-target');
-    setTimeout(() => entry.classList.remove('st-spotlight-target'), 1200);
+    entry.classList.add('st-jets-target');
+    setTimeout(() => entry.classList.remove('st-jets-target'), 1200);
 }
 
 function handleGlobalKeydown(event) {
@@ -1415,7 +1507,7 @@ function handleGlobalKeydown(event) {
         if (typeof event.stopImmediatePropagation === 'function') {
             event.stopImmediatePropagation();
         }
-        toggleSpotlight();
+        toggleJets();
         return;
     }
 
@@ -1425,7 +1517,7 @@ function handleGlobalKeydown(event) {
 
     if (event.key === 'Escape') {
         event.preventDefault();
-        closeSpotlight();
+        closeJets();
         return;
     }
 
@@ -1455,11 +1547,11 @@ function handleGlobalKeydown(event) {
     }
 }
 
-function initSpotlight() {
-    if (window.__stSpotlightInitialized) {
+function initJets() {
+    if (window.__stJetsInitialized) {
         return;
     }
-    window.__stSpotlightInitialized = true;
+    window.__stJetsInitialized = true;
     registerTestApi();
     ensureDom();
     ensureMobileEntry();
@@ -1469,7 +1561,7 @@ function initSpotlight() {
 }
 
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initSpotlight);
+    document.addEventListener('DOMContentLoaded', initJets);
 } else {
-    initSpotlight();
+    initJets();
 }

@@ -1,9 +1,9 @@
 /**
- * ST-Spotlight 设置/动作数据源
+ * JETS 设置/动作数据源
  * 从已渲染的本地化 UI 中提取可点击的设置项
  */
 
-let spotlightIdCounter = 0;
+let jetsIdCounter = 0;
 
 function getTextFromElement(element) {
     if (!element) return '';
@@ -20,17 +20,17 @@ function buildContent(parts) {
     return parts.filter(Boolean).join(' | ');
 }
 
-function ensureSpotlightSelector(element, prefix = 'settings') {
+function ensureJetsSelector(element, prefix = 'settings') {
     if (!element) return null;
     if (element.id) {
         return { id: element.id, selector: `#${element.id}` };
     }
-    let marker = element.getAttribute('data-st-spotlight-id');
+    let marker = element.getAttribute('data-st-jets-id');
     if (!marker) {
-        marker = `${prefix}-${++spotlightIdCounter}`;
-        element.setAttribute('data-st-spotlight-id', marker);
+        marker = `${prefix}-${++jetsIdCounter}`;
+        element.setAttribute('data-st-jets-id', marker);
     }
-    return { id: marker, selector: `[data-st-spotlight-id="${marker}"]` };
+    return { id: marker, selector: `[data-st-jets-id="${marker}"]` };
 }
 
 function collectOptionsMenuItems() {
@@ -113,7 +113,7 @@ function collectPanelItems(containerId, panelKey, idPrefix) {
 
     const addItem = ({ title, i18nKey, tooltip, target, action = 'reveal' }) => {
         if (!title) return;
-        const targetInfo = ensureSpotlightSelector(target, idPrefix);
+        const targetInfo = ensureJetsSelector(target, idPrefix);
         if (!targetInfo || seenSelectors.has(targetInfo.selector)) return;
         seenSelectors.add(targetInfo.selector);
 

@@ -1,5 +1,5 @@
 /**
- * ST-Spotlight 数据加载器
+ * JETS 数据加载器
  * 统一调度各 Source 的数据加载与缓存
  */
 
